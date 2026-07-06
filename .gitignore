@@ -1,0 +1,34 @@
+# Avoid tracking massive binaries and disk images in Git
+downloads/
+images/
+*.dmg
+*.img
+*.ipsw
+*.iso
+*.aux
+*.hw
+*.id
+
+# Compiled binaries
+host/runners/nixos_runner
+host/runners/macos_runner
+host/runners/compact_image
+
+# Local keys
+id_temp*
+host/keys/
+
+# macOS metadata and Trash
+.DS_Store
+.DS_Store?
+**/._*
+.fseventsd/
+.Trash-1000/
+.Trashes/
+
+# Dynamic Guest Boot Caches
+boot/
+
+# Dynamic kernel init paths
+guest/nixos/init_path*.txt
+
