@@ -87,7 +87,7 @@ setup_isolation() {
       else
         # Nix-awareness: If the source is a symlink into the Nix store, copy it instead of symlinking
         # to allow for local modifications (e.g. by gcloud or path sanitization).
-        if [[ -L "$src" && "$(readlink "$src")" =~ /nix/store/ ]] && [[ "$item" =~ \.zsh(rc|env)$ ]]; then
+        if [[ -L "$src" && "$(readlink -f "$src")" =~ /nix/store/ ]] && [[ "$item" =~ \.zsh(rc|env)$ ]]; then
           echo "  [*] Detected Nix-managed $item. Creating a writable copy instead of symlinking..."
           cp "$src" "$dest"
           chmod +w "$dest"
