@@ -54,9 +54,9 @@ struct CompactImage {
             }
         }
         
-        // Ensure block size is a multiple of 8 for alignment-safe fast UInt64 checking
-        if customBlockSize % 8 != 0 {
-            print("❌ Error: Block size must be a multiple of 8 bytes for high-performance alignment.")
+        // Ensure block size is a multiple of 4096 (APFS native allocation block size)
+        if customBlockSize % 4096 != 0 {
+            print("❌ Error: Block size must be a multiple of the APFS allocation block size (4096 bytes) for native hole-punching support.")
             exit(1)
         }
         
@@ -179,11 +179,17 @@ struct CompactImage {
         
         // Sequential scan loop
         while true {
-            let bytesRead = read(fd, buffer.baseAddress!, bufferSize)
-            if bytesRead < 0 {
-                let errStr = String(cString: strerror(errno))
-                print("\n❌ Error: Read failure: \(errStr)")
-                exit(1)
+            var bytesRead: Int
+            while true {
+                bytesRead = read(fd, buffer.baseAddress!, bufferSize)
+                if bytesRead >= 0 {
+                    break
+                }
+                if errno != EINTR {
+                    let errStr = String(cString: strerror(errno))
+                    print("\n❌ Error: Read failure: \(errStr)")
+                    exit(1)
+                }
             }
             if bytesRead == 0 {
                 break // EOF
@@ -267,7 +273,7 @@ struct CompactImage {
     @inline(__always)
     private static func isAllZero(pointer: UnsafeRawPointer, size: Int) -> Bool {
         let count = size / 8
-        let u64Ptr = pointer.bindMemory(to: UInt64.self, capacity: count)
+        let u64Ptr = pointer.assumingMemoryBound(to: UInt64.self)
         for i in 0..<count {
             if u64Ptr[i] != 0 {
                 return false

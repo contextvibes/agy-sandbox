@@ -88,6 +88,16 @@ SHARED_MOUNT="/Volumes/My Shared Files"
 REDIRECTION_ROOT="${SHARED_MOUNT}/.agy_dev_cache"
 
 echo "[INFO] Checking for VirtioFS shared drive at ${SHARED_MOUNT}..."
+
+# Robust wait loop for VirtioFS mount to become active (up to 30s timeout)
+MAX_WAIT=30
+WAIT_COUNT=0
+while [[ ! -d "${SHARED_MOUNT}" && ${WAIT_COUNT} -lt ${MAX_WAIT} ]]; do
+    echo "[INFO] Waiting for VirtioFS shared drive to mount... (${WAIT_COUNT}/${MAX_WAIT}s)"
+    sleep 1
+    ((WAIT_COUNT++))
+done
+
 if [[ -d "${SHARED_MOUNT}" ]]; then
     echo "[SUCCESS] VirtioFS shared drive found! COMMENCING SELECTIVE PROFILE REDIRECTION."
     
@@ -110,8 +120,8 @@ if [[ -d "${SHARED_MOUNT}" ]]; then
 
     # Initialize redirection folder on host mount
     mkdir -p "${REDIRECTION_ROOT}"
-    chown "${DEV_USER}:staff" "${REDIRECTION_ROOT}"
-    chmod 775 "${REDIRECTION_ROOT}"
+    chown "${DEV_USER}:staff" "${REDIRECTION_ROOT}" || true
+    chmod 775 "${REDIRECTION_ROOT}" || true
 
     for entry in "${REDIRECTS[@]}"; do
         IFS='|' read -r rel_path folder_name <<< "${entry}"
@@ -126,8 +136,8 @@ if [[ -d "${SHARED_MOUNT}" ]]; then
         # 2. Setup Host-Backed folder if missing
         if [[ ! -d "${host_backed_dir}" ]]; then
             mkdir -p "${host_backed_dir}"
-            chown -R "${DEV_USER}:staff" "${host_backed_dir}"
-            chmod -R 755 "${host_backed_dir}"
+            chown -R "${DEV_USER}:staff" "${host_backed_dir}" || true
+            chmod -R 755 "${host_backed_dir}" || true
         fi
 
         # 3. If target is a real folder, migrate contents first so no developer data is lost!
@@ -142,7 +152,7 @@ if [[ -d "${SHARED_MOUNT}" ]]; then
         if [[ ! -L "${target_symlink}" ]]; then
             rm -f "${target_symlink}" # Remove any broken link or residual file
             ln -s "${host_backed_dir}" "${target_symlink}"
-            chown -h "${DEV_USER}:staff" "${target_symlink}"
+            chown -h "${DEV_USER}:staff" "${target_symlink}" || true
             echo "    [LINKED] Created symlink: ${target_symlink} -> ${host_backed_dir}"
         else
             echo "    [OK] Symlink already exists and is active."
@@ -161,10 +171,20 @@ if [[ -d "${SHARED_MOUNT}" ]]; then
         if [[ ! -L "${PROJECTS_LINK}" ]]; then
             rm -f "${PROJECTS_LINK}"
             ln -s "${SHARED_MOUNT}" "${PROJECTS_LINK}"
-            chown -h "${DEV_USER}:staff" "${PROJECTS_LINK}"
+            chown -h "${DEV_USER}:staff" "${PROJECTS_LINK}" || true
             echo "    [LINKED] Redirected ~/Projects -> ${SHARED_MOUNT} (Host Directory)"
         fi
     fi
+
+    # Link critical developer configurations if present on the host shared mount for Identity Inheritance (Rule 8 & 13)
+    for config_item in ".ssh" ".gitconfig"; do
+        if [[ -e "${SHARED_MOUNT}/${config_item}" ]]; then
+            echo "  • Symlinking ${config_item} from host workspace for identity inheritance..."
+            rm -rf "${DEV_HOME}/${config_item}"
+            ln -s "${SHARED_MOUNT}/${config_item}" "${DEV_HOME}/${config_item}"
+            chown -h "${DEV_USER}:staff" "${DEV_HOME}/${config_item}" || true
+        fi
+    done
 else
     echo "[WARNING] VirtioFS shared drive NOT found at ${SHARED_MOUNT}. Profile redirection skipped."
     echo "[WARNING] Guest VM is running on standalone local disk storage."

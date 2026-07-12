@@ -542,7 +542,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, @preconcur
                     secureFilePermissions(at: path)
                     return // Image exists with matching size
                 } else {
-                    print("⚠️ Disk image size mismatch (Expected: \(sizeInGB) GB, Found: \(Double(actualSize) / 1024.0 / 1024.0 / 1024.0) GB). Re-creating...")
+                    print("❌ Fatal Error: Disk image exists at \(path) but has a different size than specified (\(Double(actualSize) / 1024.0 / 1024.0 / 1024.0) GB vs expected \(sizeInGB) GB).")
+                    print("   To protect your data, the runner will not proceed. Please specify the matching --disk-size or manually move/rename the existing disk image.")
+                    exit(1)
                 }
             }
         }

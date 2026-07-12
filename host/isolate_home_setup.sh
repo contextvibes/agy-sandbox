@@ -85,9 +85,9 @@ setup_isolation() {
       elif [ -e "$dest" ]; then
         echo "  [!] Warning: A physical file/directory already exists at $dest. Skipping."
       else
-        # Nix-awareness: If the source is a symlink into the Nix store, copy it instead of symlinking
-        # to allow for local modifications (e.g. by gcloud or path sanitization).
-        if [[ -L "$src" && "$(readlink -f "$src")" =~ /nix/store/ ]] && [[ "$item" =~ \.zsh(rc|env)$ ]]; then
+        local resolved_src
+        resolved_src=$(python3 -c "import os, sys; print(os.path.realpath(sys.argv[1]))" "$src" 2>/dev/null || readlink "$src" || echo "$src")
+        if [[ -L "$src" && "${resolved_src}" =~ /nix/store/ ]] && [[ "$item" =~ \.zsh(rc|env)$ ]]; then
           echo "  [*] Detected Nix-managed $item. Creating a writable copy instead of symlinking..."
           cp "$src" "$dest"
           chmod +w "$dest"
@@ -247,8 +247,8 @@ if [[ -z "$TARGET_DIR" ]] || [[ -z "$DISPLAY_NAME" ]]; then
   exit 1
 fi
 
-if [[ ! "$TARGET_DIR" =~ ^/[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)*$ ]]; then
-  echo "Error: Invalid target directory path '$TARGET_DIR'. Only safe alphanumeric, hyphen, dot, and slash characters are allowed." >&2
+if [[ "$TARGET_DIR" == *".."* ]] || [[ ! "$TARGET_DIR" =~ ^/Users/Shared/[a-zA-Z0-9_-]+$ ]]; then
+  echo "Error: Invalid target directory path '$TARGET_DIR'. Must be a clean absolute subdirectory of /Users/Shared/." >&2
   exit 1
 fi
 

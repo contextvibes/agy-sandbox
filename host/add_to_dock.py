@@ -53,14 +53,28 @@ def create_dock_entry(path, label, is_dir=False):
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Pin apps to macOS Dock plist safely.")
+    import pwd
+    parser = argparse.ArgumentParser(description="Pin or unpin apps to macOS Dock plist safely.")
     parser.add_argument("--plist", help="Path to com.apple.dock.plist to modify")
     parser.add_argument("--kill", action="store_true", default=True, help="Restart Dock process after modification")
     parser.add_argument("--no-kill", dest="kill", action="store_false", help="Do not restart Dock process")
     parser.add_argument("--app", action="append", nargs="+", help="Add custom app path and optional label (e.g. --app '/path/to/App.app' 'App Name')")
+    parser.add_argument("--remove", action="append", help="Remove an app from the Dock by its label or path")
     args = parser.parse_args()
 
-    host_plist = os.path.expanduser("~/Library/Preferences/com.apple.dock.plist")
+    # Determine real host plist bypassing HOME redirection if possible
+    host_plist = ""
+    username = os.environ.get("USER")
+    if username:
+        try:
+            real_home = pwd.getpwnam(username).pw_dir
+            potential_plist = os.path.join(real_home, "Library/Preferences/com.apple.dock.plist")
+            if os.path.exists(potential_plist):
+                host_plist = potential_plist
+        except KeyError:
+            pass
+    if not host_plist:
+        host_plist = os.path.expanduser("~/Library/Preferences/com.apple.dock.plist")
 
     # Determine targets
     target_plists = []
@@ -87,7 +101,8 @@ def main():
             else:
                 label = os.path.splitext(os.path.basename(path))[0]
             apps_to_add.append((path, label))
-    else:
+    elif not args.remove:
+        # Only add default apps if --app is omitted and --remove is NOT specified
         apps_to_add = [
             ("/Applications/Antigravity.app", "Antigravity"),
             ("/Applications/Antigravity IDE.app", "Antigravity IDE")
@@ -114,6 +129,33 @@ def main():
         persistent_others = data.get("persistent-others", [])
         modified = False
 
+        # 1. Handle removals first
+        if args.remove:
+            for rem in args.remove:
+                # rem could be label or path
+                rem_cfurl = get_cfurl_string(rem)
+                
+                initial_len_apps = len(persistent_apps)
+                persistent_apps = [
+                    item for item in persistent_apps
+                    if item.get("tile-data", {}).get("file-label") != rem and 
+                       item.get("tile-data", {}).get("file-data", {}).get("_CFURLString") != rem_cfurl
+                ]
+                if len(persistent_apps) < initial_len_apps:
+                    modified = True
+                    print(f"  - Removed '{rem}' from persistent-apps.")
+
+                initial_len_others = len(persistent_others)
+                persistent_others = [
+                    item for item in persistent_others
+                    if item.get("tile-data", {}).get("file-label") != rem and 
+                       item.get("tile-data", {}).get("file-data", {}).get("_CFURLString") != rem_cfurl
+                ]
+                if len(persistent_others) < initial_len_others:
+                    modified = True
+                    print(f"  - Removed '{rem}' from persistent-others.")
+
+        # 2. Handle additions
         for path, label in apps_to_add:
             if not os.path.exists(path):
                 print(f"Warning: {path} does not exist on disk. Skipping.")
