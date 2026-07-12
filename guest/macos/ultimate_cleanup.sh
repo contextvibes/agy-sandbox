@@ -122,8 +122,8 @@ echo -e "${BOLD_CYAN}[1/6] Purging System & User Caches/Logs...${NC}"
 USER_CACHE_DIR="$HOME/Library/Caches"
 if [ -d "$USER_CACHE_DIR" ]; then
     log_info "Purging items inside user caches (~/Library/Caches)..."
-    # Keep the directory structure intact, delete only the contents
-    find "$USER_CACHE_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || \
+    # Keep the directory structure intact, delete only the contents, excluding symlinks
+    find "$USER_CACHE_DIR" -mindepth 1 -maxdepth 1 ! -type l -exec rm -rf {} + 2>/dev/null || \
         log_warning "Some user cache files could not be removed (they may be in use)."
     log_success "User cache purge completed."
 else

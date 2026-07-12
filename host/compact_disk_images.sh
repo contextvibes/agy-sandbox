@@ -149,6 +149,14 @@ compact_single_image() {
 # --- Action Dispatcher ---
 TARGET="${1:-}"
 
+# Strict parameter validation
+if [[ -n "${TARGET}" ]]; then
+    if [[ "${TARGET}" != "all" && ! "${TARGET}" =~ ^[a-zA-Z0-9_.-]+$ ]] || [[ "${TARGET}" == *".."* ]]; then
+        log_error "Invalid target format: '${TARGET}'. Only alphanumeric characters, dots, dashes, and underscores are allowed (no slashes or directory traversal)."
+        exit 1
+    fi
+fi
+
 # Check for direct arguments (e.g. "./compact_disk_images.sh all" or profile/file name)
 if [[ -n "${TARGET}" ]]; then
     if [[ "${TARGET}" == "all" ]]; then
@@ -163,9 +171,6 @@ if [[ -n "${TARGET}" ]]; then
     DISK_NAME=""
     if [[ -f "${IMAGES_DIR}/${TARGET}" ]]; then
         DISK_NAME="${TARGET}"
-    elif [[ -f "${TARGET}" ]]; then
-        DISK_NAME="$(basename "${TARGET}")"
-        IMAGES_DIR="$(dirname "$(realpath "${TARGET}")")"
     else
         # Normalize dash to underscore for standard profile file matching
         # e.g., "example-corp" -> "example_corp"

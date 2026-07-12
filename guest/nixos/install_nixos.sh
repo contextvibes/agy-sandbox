@@ -58,6 +58,10 @@ for dev_path in /sys/class/net/*; do
     fi
 done
 
+# --- Block Google Cloud Metadata server to prevent ADC timeouts in installer ---
+log_info "Blocking Google Cloud Metadata IP (169.254.169.254) to prevent connection timeouts..."
+ip route replace unreachable 169.254.169.254 >/dev/null 2>&1 || true
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DISK="/dev/vdb"
 PROFILE_NAME="${1:-antigravity-nixos}"

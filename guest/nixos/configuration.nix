@@ -24,7 +24,7 @@
   #  2. UEFI BOOTLOADER CONFIGURATIONS (ARM64 VIRTUAL FIRMWARE)
   # =========================================================================
   boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
+  boot.loader.efi.canTouchEfiVariables = false;
   boot.loader.timeout = 0; # Bypass bootloader menu for faster boot times
 
   # =========================================================================
@@ -108,40 +108,23 @@
     "net.core.bpf_jit_enable" = 0; # Disable BPF JIT to prevent kernel NULL pointer dereferences in sk_filter_trim_cap
   };
 
-  # --- CRITICAL WORKAROUND: ADC Metadata Server & TCP Checksum Offload ---
-  # 1. Local ADC Metadata Server Connection Timeouts:
-  #    Go/Electron applications checking credentials locally will stall for exactly 
-  #    42+ seconds trying to reach Google Cloud metadata at 169.254.169.254 if the network 
-  #    doesn't explicitly reject the packet. This delay exceeds Electron's 30-second window 
-  #    load timeout and causes a persistent "black screen" on startup. Adding an unreachable 
-  #    route forces these checks to fail instantly (< 1ms).
-  systemd.services.adc-metadata-blocker = {
-    description = "Add unreachable route for Google Cloud Metadata IP to prevent ADC timeouts";
-    after = [ "network.target" ];
-    wantedBy = [ "multi-user.target" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      ExecStart = "${pkgs.iproute2}/bin/ip route replace unreachable 169.254.169.254";
-      ExecStop = "-${pkgs.iproute2}/bin/ip route del unreachable 169.254.169.254";
-    };
-  };
-
   # 2. TCP Checksum Offloading and MTU Bugs:
   #    Apple's Virtualization.framework NAT gateway fails to process guest hardware-checksum-offloaded 
   #    TCP packets correctly, leading to silent download corruptions. Forcing software checksum 
   #    processing via 'ethtool -K dev rx off tx off' combined with an MTU limit of 1400 restores 
   #    complete network and packet integrity. We use a declarative NetworkManager dispatcher script
-  #    to reliably apply these fixes when interfaces transition to the 'up' state.
+  #    to reliably apply these fixes and block GCE metadata (preventing 42s timeouts) when interfaces transition to 'up'.
   networking.networkmanager.dispatcherScripts = [
     {
-      source = pkgs.writeText "disable-checksum-offload" ''
+      source = pkgs.writeText "network-hardening" ''
         #!/usr/bin/env bash
         interface="$1"
         action="$2"
         if [ "$action" = "up" ] && [ "$interface" != "lo" ]; then
           ${pkgs.ethtool}/bin/ethtool -K "$interface" rx off tx off 2>/dev/null || true
           ${pkgs.iproute2}/bin/ip link set dev "$interface" mtu 1400 2>/dev/null || true
+          # Enforce local GCE metadata server block instantly on link activation to prevent 42s Electron timeouts (Rule 6)
+          ${pkgs.iproute2}/bin/ip route replace unreachable 169.254.169.254 2>/dev/null || true
         fi
       '';
     }

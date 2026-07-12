@@ -51,6 +51,12 @@ trap cleanup EXIT INT TERM
 # --- 0. Profile and Argument Parsing ---
 PROFILE_NAME="${1:-antigravity-nixos}"
 
+# Strict parameter validation
+if [[ ! "${PROFILE_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    log_error "Invalid profile name '${PROFILE_NAME}'. Only alphanumeric characters, dashes, and underscores are allowed."
+    exit 1
+fi
+
 # Map the profile name to corresponding image filename and boot cache directory
 if [[ "${PROFILE_NAME}" == "antigravity-nixos" ]]; then
     DISK_NAME="nixos_guest.img"
@@ -230,6 +236,6 @@ log_info "Interactive serial console will activate immediately after trigger com
   --disk "${DISK_PATH}" \
   --cpus 4 \
   --memory 8192 \
-  --cmdline "${INIT_ARG} root=fstab console=hvc0 rw" \
+  --cmdline "${INIT_ARG} root=fstab console=hvc0 rw ipv6.disable=1 bpf_jit_enable=0 quiet loglevel=3" \
   --shared-dir "${SANDBOX_DIR}" \
   --gui

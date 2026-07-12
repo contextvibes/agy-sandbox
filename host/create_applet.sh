@@ -67,6 +67,12 @@ if [[ ! "$CUSTOMER" =~ ^[a-zA-Z0-9\ _-]+$ ]]; then
   exit 1
 fi
 
+# Sanitize home directory path
+if [[ ! "$CUSTOMER_HOME" =~ ^/[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)*$ ]] || [[ "$CUSTOMER_HOME" == *".."* ]]; then
+  echo "Error: Invalid home directory path '${CUSTOMER_HOME}'. Only clean absolute alphanumeric paths are allowed." >&2
+  exit 1
+fi
+
 # Determine base app and applet name
 if [[ "$USE_IDE" == "true" ]]; then
   BASE_APP="/Applications/Antigravity IDE.app"
